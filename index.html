@@ -102,7 +102,7 @@ tr.st td{color:var(--mut)}
    <div class="full"><label class="chk"><input type="checkbox" id="fSettled"> تسویه شده</label></div>
    <div class="full"><button class="pri" id="btnAdd">ثبت حساب</button></div>
   </div>
-  <p style="color:var(--mut);font-size:12px;margin-top:10px">«بدهکار» یعنی شخص به فروشگاه بدهکار است و «بستانکار» یعنی فروشگاه به شخص بدهکار است. حساب‌های «تسویه شده» در مجموع طلب و بدهی حساب نمی‌شوند. تاریخ و ساعت ثبت به‌صورت خودکار و شمسی ذخیره می‌شود.</p>
+  <p style="color:var(--mut);font-size:12px;margin-top:10px">«بدهکار» یعنی شخص به فروشگاه بدهکار است و «بستانکار» یعنی فروشگاه به شخص بدهکار است. حساب‌های «تسویه شده» در مجموع طلب و بدهی حساب نمی‌شوند. تاریخ ثبت به‌صورت خودکار و شمسی ذخیره می‌شود.</p>
  </div>
 
  <div class="panel">
@@ -117,7 +117,7 @@ tr.st td{color:var(--mut)}
    <input type="file" id="fFile" accept=".json" style="display:none">
   </div>
   <div class="tbl"><table>
-   <thead><tr><th>ردیف</th><th>نام</th><th>شماره تماس</th><th>وضعیت</th><th>مبلغ</th><th>توضیحات</th><th>تاریخ و ساعت ثبت</th><th>عملیات</th></tr></thead>
+   <thead><tr><th>ردیف</th><th>نام</th><th>شماره تماس</th><th>وضعیت</th><th>مبلغ</th><th>توضیحات</th><th>تاریخ ثبت</th><th>عملیات</th></tr></thead>
    <tbody id="tbody"></tbody>
   </table></div>
  </div>
@@ -153,7 +153,19 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){toas
 const fa=n=>String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
 const en=s=>s.replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
 const money=n=>new Intl.NumberFormat('fa-IR').format(n)+' تومان';
-const fmt=iso=>new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(iso));
+const IR=210*60000;
+let skew=0;
+const nowMs=()=>Date.now()+skew;
+const nowISO=()=>new Date(nowMs()).toISOString();
+async function syncTime(){
+ const ctl=u=>{const c=new AbortController();setTimeout(()=>c.abort(),5000);return c.signal};
+ try{const t0=Date.now();const r=await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC',{cache:'no-store',signal:ctl()});const j=await r.json();const t1=Date.now();
+  if(j&&j.unixtime){skew=j.unixtime*1000+(t1-t0)/2-t1;return}}catch(e){}
+ try{const t0=Date.now();const r=await fetch(location.href.split('#')[0],{method:'HEAD',cache:'no-store',signal:ctl()});const d=r.headers.get('Date');const t1=Date.now();
+  if(d){skew=new Date(d).getTime()+(t1-t0)/2-t1}}catch(e){}
+}
+syncTime();
+const fmt=iso=>new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(new Date(iso).getTime()+IR));
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tn=t=>t==='c'?'بستانکار':'بدهکار';
 function toast(t){const x=$('toast');x.textContent=t;x.classList.add('on');clearTimeout(x._t);x._t=setTimeout(()=>x.classList.remove('on'),3000)}
@@ -170,7 +182,7 @@ function valid(name,phone,type,amt,note){
 }
 function add(){
  const v=valid($('fName').value,$('fPhone').value,$('fType').value,$('fAmt').value,$('fNote').value);if(!v)return;
- const now=new Date().toISOString(),s=$('fSettled').checked;
+ const now=nowISO(),s=$('fSettled').checked;
  data.unshift({id:uid(),...v,settled:s,settledAt:s?now:null,createdAt:now});
  save();['fName','fPhone','fAmt','fNote'].forEach(i=>$(i).value='');$('fSettled').checked=false;$('fName').focus();render();toast('حساب جدید ثبت شد');
 }
@@ -192,7 +204,7 @@ function render(){
 }
 function toggleSettled(id){
  const x=data.find(d=>d.id===id);if(!x)return;
- x.settled=!x.settled;x.settledAt=x.settled?new Date().toISOString():null;
+ x.settled=!x.settled;x.settledAt=x.settled?nowISO():null;
  save();render();toast(x.settled?'حساب تسویه شد':'حساب دوباره باز شد');
 }
 function openEdit(id){const x=data.find(d=>d.id===id);if(!x)return;editId=id;$('eName').value=x.name;$('ePhone').value=x.phone||'';$('eType').value=x.type;$('eAmt').value=Number(x.amount).toLocaleString('en-US');$('eNote').value=x.note||'';$('eSettled').checked=!!x.settled;openM('mEdit');$('eName').focus()}
@@ -200,7 +212,7 @@ function saveEdit(){
  const v=valid($('eName').value,$('ePhone').value,$('eType').value,$('eAmt').value,$('eNote').value);if(!v)return;
  const x=data.find(d=>d.id===editId);if(!x)return;
  const s=$('eSettled').checked;
- if(s&&!x.settled)x.settledAt=new Date().toISOString();
+ if(s&&!x.settled)x.settledAt=nowISO();
  if(!s)x.settledAt=null;
  Object.assign(x,v,{settled:s});
  save();closeM('mEdit');render();toast('حساب ویرایش شد');
@@ -208,10 +220,10 @@ function saveEdit(){
 function askDel(id){const x=data.find(d=>d.id===id);if(!x)return;delId=id;$('delTxt').textContent=`آیا از حذف حساب «${x.name}» به مبلغ ${money(x.amount)} اطمینان دارید؟ این کار قابل بازگشت نیست.`;openM('mDel')}
 function confirmDel(){data=data.filter(x=>x.id!==delId);save();closeM('mDel');render();toast('حساب حذف شد')}
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove()}
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>new Date(nowMs()+IR).toISOString().slice(0,10);
 function backup(){
  if(!data.length){toast('فهرستی برای پشتیبان‌گیری وجود ندارد');return}
- dl(new Blob([JSON.stringify({app:'mirjalil-nesiye',exportedAt:new Date().toISOString(),items:data},null,2)],{type:'application/json'}),`backup-nesiye-${today()}.json`);toast('فایل پشتیبان دریافت شد');
+ dl(new Blob([JSON.stringify({app:'mirjalil-nesiye',exportedAt:nowISO(),items:data},null,2)],{type:'application/json'}),`backup-nesiye-${today()}.json`);toast('فایل پشتیبان دریافت شد');
 }
 function restore(inp){
  const f=inp.files[0];if(!f)return;const r=new FileReader();
@@ -232,7 +244,7 @@ function csv(){
 }
 function doPrint(){
  const l=list();if(!l.length){toast('فهرستی برای چاپ وجود ندارد');return}
- $('pr').innerHTML=`<h1>سامانه نسیه فروشگاه میر جلیل هاشمی</h1><p>تاریخ چاپ: ${fmt(new Date().toISOString())} — تعداد: ${fa(l.length)} حساب</p><table><thead><tr><th>ردیف</th><th>نام</th><th>شماره تماس</th><th>وضعیت</th><th>مبلغ</th><th>تسویه</th><th>توضیحات</th><th>تاریخ ثبت</th></tr></thead><tbody>${l.map((x,i)=>`<tr><td>${fa(i+1)}</td><td>${esc(x.name)}</td><td dir="ltr" style="text-align:right">${esc(x.phone||'—')}</td><td>${tn(x.type)}</td><td>${money(x.amount)}</td><td>${x.settled?'تسویه شده':'تسویه‌نشده'}</td><td>${esc(x.note||'—')}</td><td>${fmt(x.createdAt)}</td></tr>`).join('')}</tbody></table>`;
+ $('pr').innerHTML=`<h1>سامانه نسیه فروشگاه میر جلیل هاشمی</h1><p>تاریخ چاپ: ${fmt(nowISO())} — تعداد: ${fa(l.length)} حساب</p><table><thead><tr><th>ردیف</th><th>نام</th><th>شماره تماس</th><th>وضعیت</th><th>مبلغ</th><th>تسویه</th><th>توضیحات</th><th>تاریخ ثبت</th></tr></thead><tbody>${l.map((x,i)=>`<tr><td>${fa(i+1)}</td><td>${esc(x.name)}</td><td dir="ltr" style="text-align:right">${esc(x.phone||'—')}</td><td>${tn(x.type)}</td><td>${money(x.amount)}</td><td>${x.settled?'تسویه شده':'تسویه‌نشده'}</td><td>${esc(x.note||'—')}</td><td>${fmt(x.createdAt)}</td></tr>`).join('')}</tbody></table>`;
  window.print();
 }
 [['fAmt'],['eAmt']].forEach(([i])=>$(i).addEventListener('input',e=>{const n=en(e.target.value).replace(/\D/g,'');e.target.value=n?Number(n).toLocaleString('en-US'):''}));
